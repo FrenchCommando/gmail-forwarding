@@ -16,3 +16,5 @@ Everyone uses gmail - so I don't think it's quite a big restriction.
 Yes tell me what you think.
 I love pull requests
 https://github.com/FrenchCommando
+
+https://developers.google.com/gmail/api/quickstart/python

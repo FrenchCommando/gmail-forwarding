@@ -1,6 +1,7 @@
 import os
 import base64
 import email
+import datetime
 from scheduler import scheduler
 from gmail_service import service, user_id
 from gmail_message import ListMessagesMatchingQuery, GetMessage
@@ -16,7 +17,7 @@ def init_sender(sender):
         os.mkdir(sender)
         last_time = get_timestamp(sender)
         with open(os.path.join(sender, timestamp_file), 'w+') as f:
-            f.write(last_time)
+            f.write(str(int(last_time)))
 
         with open(os.path.join(sender, key_file), 'w+') as f:
             f.write(sender + '654869735967345896794358' + '\n')
@@ -35,13 +36,15 @@ def update_timestamp(sender):
 
 def get_ref_timestamp(sender):
     with open(os.path.join(sender, timestamp_file)) as f:
-        timestamp = int(f.readline())
-    return timestamp
+        try:
+            return int(f.readline())
+        except ValueError:
+            return None
 
 
 def set_ref_timestamp(sender, timestamp):
     with open(os.path.join(sender, timestamp_file), 'w+') as f:
-        f.write(str(timestamp))
+        f.write(str(int(timestamp)))
 
 
 def get_timestamp(sender, timestamp=None):
@@ -58,18 +61,21 @@ def get_timestamp(sender, timestamp=None):
     # print(GetMessage(service=service, user_id=user_id,
     #                  msg_ids=[msgs[-1]['id']]
     #                  )[0]['internalDate'])
-    return GetMessage(service=service, user_id=user_id,
-                      msg_ids=[msgs[0]['id']]
-                      )[0]['internalDate']
+    return int(GetMessage(service=service, user_id=user_id,
+                          msg_ids=[msgs[0]['id']]
+                          )[0]['internalDate']
+               ) // 1000
 
 
 def list_messages(sender, timestamp):
     query = "from:{}".format(sender)
     if timestamp is not None:
-        query += " after:{}".format(str(timestamp))
-    return ListMessagesMatchingQuery(service=service,
-                                     user_id=user_id,
-                                     q=query)
+        query += " after:{}".format(str(timestamp + 10))  # don't get the last one
+    mmm = ListMessagesMatchingQuery(service=service,
+                                    user_id=user_id,
+                                    q=query)
+    print("ListMsg", len(mmm))
+    return mmm
 
 
 def get_stamped_mime_messages(sender):
@@ -82,8 +88,9 @@ def get_stamped_mime_messages(sender):
                               format="raw"
                               )
 
+    print("Mime", len(msgs_content))
     mime_msgs = []
-    for m in msgs_content[:3]:
+    for m in msgs_content:
         msg_str = base64.urlsafe_b64decode(m['raw'].encode('ASCII'))
         mime_msg = email.message_from_bytes(msg_str)
 
@@ -163,6 +170,8 @@ def run_process(sender):
         update_subscribers(sender)
         listen_and_deliver(sender)
         update_timestamp(sender)
+        print("Waiting", datetime.datetime.now())
+        print()
 
-    scheduler.add_job(update, 'interval', hours=1)
+    scheduler.add_job(update, 'interval', minutes=1)
     scheduler.start()
